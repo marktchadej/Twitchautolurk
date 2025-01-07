@@ -36,7 +36,7 @@ def check_if_live(access_token, client_id, streamer_name):
         data = response_data['data']
         return len(data) > 0
     else:
-        print(f"Error: 'data' key not found in response for {streamer_name}.")
+        print(f"Error: 'data' key not found in response for {streamer_name}. Ensure the spelling is correct on the streamer name.")
         return False
 
 # Get the access token
