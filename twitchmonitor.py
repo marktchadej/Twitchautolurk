@@ -36,7 +36,7 @@ def check_if_live(access_token, client_id, streamer_name):
         data = response_data['data']
         return len(data) > 0
     else:
-        print(f"Error: 'data' key not found in response for {streamer_name}. Ensure the spelling is correct on the streamer name.")
+        print(f"Error: 'data' key not found in response for {streamer_name}.")
         return False
 
 # Get the access token
@@ -45,13 +45,17 @@ access_token = get_access_token(client_id, client_secret)
 # Dictionary to track which streamers have already been opened
 opened_streamers = {streamer: False for streamer in streamer_names}
 
+# Set Chromium as the browser
+chrome_path = '/usr/bin/chromium-browser %s'
+browser = webbrowser.get(chrome_path)
+
 # Polling loop
 while True:
     for streamer_name in streamer_names:
         if check_if_live(access_token, client_id, streamer_name):
             if not opened_streamers[streamer_name]:
                 print(f'{streamer_name} is live! Opening stream...')
-                webbrowser.open(f'https://www.twitch.tv/{streamer_name}')
+                browser.open(f'https://www.twitch.tv/{streamer_name}')
                 opened_streamers[streamer_name] = True
             else:
                 print(f'{streamer_name} is still live. Checking again in 30 seconds...')
