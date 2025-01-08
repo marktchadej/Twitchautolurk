@@ -3,20 +3,7 @@ import sys
 import time
 import requests
 import configparser
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 import logging
-
-# Suppress USB-related errors from Selenium logs
-options = webdriver.ChromeOptions()
-options.add_argument("--start-maximized")
-
-# Disable logging for Selenium
-options.add_argument("--log-level=3")
-
-# Set up Selenium WebDriver
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 # Load configuration from config.conf
 config = configparser.ConfigParser()
@@ -57,29 +44,22 @@ def check_if_live(access_token, client_id, streamer_name):
 # Get the access token
 access_token = get_access_token(client_id, client_secret)
 
-# Dictionary to track which streamers have already been opened and their tabs
-opened_streamers = {streamer: None for streamer in streamer_names}
+# Dictionary to track which streamers are live
+opened_streamers = {streamer: False for streamer in streamer_names}
 
 # Polling loop
 while True:
     for streamer_name in streamer_names:
         if check_if_live(access_token, client_id, streamer_name):
             if not opened_streamers[streamer_name]:
-                print(f'{streamer_name} is live! Opening stream...')
-                driver.execute_script("window.open('');")
-                driver.switch_to.window(driver.window_handles[-1])
-                driver.get(f'https://www.twitch.tv/{streamer_name}')
-                opened_streamers[streamer_name] = driver.current_window_handle
+                print(f'{streamer_name} is live!')
+                opened_streamers[streamer_name] = True
             else:
                 print(f'{streamer_name} is still live. Checking again in 30 seconds...')
         else:
             if opened_streamers[streamer_name]:
-                print(f'{streamer_name} is offline. Closing stream tab...')
-                driver.switch_to.window(opened_streamers[streamer_name])
-                driver.close()
-                if len(driver.window_handles) > 0:
-                    driver.switch_to.window(driver.window_handles[0])
-                opened_streamers[streamer_name] = None
+                print(f'{streamer_name} is offline.')
+                opened_streamers[streamer_name] = False
             else:
                 print(f'{streamer_name} is still offline.')
     print('Checking again in 30 seconds...')
