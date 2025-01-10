@@ -2,9 +2,9 @@
 Create a list of streamers and have this python script check if they're streaming. Will open the stream when they come online in your default browser.
 
 ## Requirements
-[Python 3](https://www.python.org/downloads/) installed
-Run `pip install psutil`
-run `pip install pychrome'
+1. [Python 3](https://www.python.org/downloads/) installed
+2. Run `pip install psutil`
+3. run `pip install pychrome'
 
 ## Setting up
 1. Go to the twitch dev console [here](https://dev.twitch.tv/console)
