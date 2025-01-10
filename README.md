@@ -4,7 +4,7 @@ Create a list of streamers and have this python script check if they're streamin
 ## Requirements
 1. [Python 3](https://www.python.org/downloads/) installed
 2. Run `pip install psutil`
-3. run `pip install pychrome`
+3. Run `pip install pychrome`
 
 ## Setting up
 1. Go to the twitch dev console [here](https://dev.twitch.tv/console)
