@@ -4,9 +4,15 @@ import time
 import requests
 import configparser
 import subprocess
-import psutil
-import pychrome
 import threading
+import logging
+import psutil
+from collections import deque
+from datetime import datetime
+
+# Set up logging
+logging.basicConfig(filename='streamer_script.log', level=logging.ERROR, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load configuration from config.conf
 config = configparser.ConfigParser()
@@ -47,55 +53,47 @@ def check_if_live(access_token, client_id, streamer_name):
         return len(data) > 0
     return False
 
-# Function to get all open URLs in Chrome/Chromium windows using Chrome DevTools Protocol
-def get_open_urls():
-    urls = []
+# Function to get the PID of the Chrome window with the matching URL
+def get_pid_by_url(url):
     try:
-        browser = pychrome.Browser(url="http://127.0.0.1:9222")
-        tabs = browser.list_tab()
-        for tab in tabs:
-            if tab.url and (tab.url.startswith('http://') or tab.url.startswith('https://')):
-                urls.append(tab.url)
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            if 'chrome' in proc.info['name'].lower():
+                if url in proc.info['cmdline']:
+                    logging.debug(f"Found Chrome PID: {proc.info['pid']} for URL: {url}")
+                    return proc.info['pid']
     except Exception as e:
-        print(f"Error getting URLs: {str(e)}")
-    return urls
+        logging.error(f"Error getting PID for URL {url}: {str(e)}")
+    return None
 
-# Function to close all Chrome/Chromium browsers
-def close_all_browsers():
-    for proc in psutil.process_iter(['pid', 'name']):
-        if proc.info['name'] in ['chrome.exe', 'chromium.exe']:
-            try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except psutil.NoSuchProcess:
-                pass
-            except psutil.TimeoutExpired:
-                pass
-
-# Function to reopen browser windows with given URLs
-def reopen_browsers_with_urls(urls):
-    for url in urls:
-        subprocess.Popen(['C:/Program Files/Google/Chrome/Application/chrome.exe', '--new-window', url])
+# Function to terminate a process by PID
+def terminate_process_by_pid(pid):
+    try:
+        proc = psutil.Process(pid)
+        proc.terminate()
+        logging.info(f"Terminated process with PID: {pid}")
+    except Exception as e:
+        logging.error(f"Error terminating process with PID: {pid} - {str(e)}")
 
 # Function to handle keyboard input
-def listen_for_q():
-    while True:
-        if input().lower() == 'q':
-            global stop_thread
-            stop_thread = True
-            break
+def listen_for_enter():
+    input()
+    global stop_thread
+    stop_thread = True
 
 # Get the access token
 access_token = get_access_token(client_id, client_secret)
 
-# Dictionary to track which streamers are live and their process objects
+# Dictionary to track which streamers are live and their opened URLs
 opened_streamers = {streamer: None for streamer in streamer_names}
+
+# Deque to store the last 10 messages
+info_messages = deque(maxlen=10)
 
 # Flag to indicate when to stop the script
 stop_thread = False
 
-# Start the thread to listen for 'q' key press
-listener_thread = threading.Thread(target=listen_for_q)
+# Start the thread to listen for Enter key press
+listener_thread = threading.Thread(target=listen_for_enter)
 listener_thread.start()
 
 # Polling loop
@@ -103,29 +101,38 @@ while not stop_thread:
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f'{"Streamer":<20}{"Status":<10}')
     print('-' * 30)
-    info_messages = []
     for streamer_name in streamer_names:
-        if check_if_live(access_token, client_id, streamer_name):
+        is_live = check_if_live(access_token, client_id, streamer_name)
+        if is_live:
             if not opened_streamers[streamer_name]:
-                info_messages.append(f'{streamer_name} is live! Opening stream...')
-                process = subprocess.Popen(['C:/Program Files/Google/Chrome/Application/chrome.exe', '--new-window', f'https://www.twitch.tv/{streamer_name}'])
-                opened_streamers[streamer_name] = process
+                message = f'{streamer_name} is live! Opening stream...'
+                logging.info(message)
+                timestamped_message = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {message}'
+                info_messages.appendleft(timestamped_message)
+                process = subprocess.Popen(['C:/Program Files/Google/Chrome/Application/chrome.exe', 
+                                            '--new-window', 
+                                            f'https://www.twitch.tv/{streamer_name}'])
+                opened_streamers[streamer_name] = process.pid
             status = f'{GREEN}online{RESET}'
         else:
             if opened_streamers[streamer_name]:
-                info_messages.append(f'{streamer_name} is offline. Taking note of all open URLs, closing browsers, and reopening remaining URLs...')
-                open_urls = get_open_urls()
-                filtered_urls = [url for url in open_urls if streamer_name.lower() not in url.lower()]
-                close_all_browsers()
-                reopen_browsers_with_urls(filtered_urls)
+                message = f'{streamer_name} is offline. Closing their specific browser window...'
+                logging.info(message)
+                timestamped_message = f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")} - {message}'
+                info_messages.appendleft(timestamped_message)
+                pid = opened_streamers[streamer_name]
+                if pid:
+                    terminate_process_by_pid(pid)
                 opened_streamers[streamer_name] = None
             status = f'{RED}offline{RESET}'
         print(f'{streamer_name:<20}{status:<10}')
+    
+    # Display the "Info" section
     print('\nInfo:')
-    print('-' * 30)
-    for message in info_messages:
-        print(message)
-    print('\nPress Q to exit.')
+    for msg in info_messages:
+        print(msg)
+        
+    print('\nPress Enter to exit.')
     print('\nChecking again in 30 seconds...')
     time.sleep(30)
 
